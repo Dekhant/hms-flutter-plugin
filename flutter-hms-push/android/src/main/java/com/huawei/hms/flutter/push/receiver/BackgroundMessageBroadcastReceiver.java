@@ -20,25 +20,38 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 
 import com.huawei.hms.flutter.push.backgroundmessaging.BackgroundMessagingService;
 
 public class BackgroundMessageBroadcastReceiver extends BroadcastReceiver {
     private static final String TAG = BackgroundMessageBroadcastReceiver.class.getSimpleName();
-
-    public static final String BACKGROUND_REMOTE_MESSAGE
-        = "com.huawei.hms.flutter.push.receiver.BACKGROUND_REMOTE_MESSAGE";
+ 
+    
+    public static final String BACKGROUND_REMOTE_MESSAGE = "com.huawei.hms.flutter.push.receiver.BACKGROUND_REMOTE_MESSAGE";
+    
 
     @Override
     public void onReceive(Context context, final Intent intent) {
+        Log.i(TAG, "BackgroundMessageBroadcastReceiver onReceive called with action: " + intent.getAction());
+        
         if (intent != null) {
             final String action = intent.getAction();
             if (BACKGROUND_REMOTE_MESSAGE.equals(action)) {
+                Log.i(TAG, "Processing BACKGROUND_REMOTE_MESSAGE");
+                
                 Bundle result = intent.getExtras();
                 if (result != null) {
+                    Log.i(TAG, "Extras found, enqueueing work to BackgroundMessagingService");
                     BackgroundMessagingService.enqueueWork(context, intent);
+                } else {
+                    Log.w(TAG, "No extras found in BACKGROUND_REMOTE_MESSAGE intent");
                 }
+            } else {
+                Log.w(TAG, "Unknown action: " + action);
             }
+        } else {
+            Log.w(TAG, "Received null intent");
         }
     }
 }

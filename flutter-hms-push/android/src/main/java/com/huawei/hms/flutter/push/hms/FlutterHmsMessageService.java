@@ -16,11 +16,8 @@
 
 package com.huawei.hms.flutter.push.hms;
 
-import android.app.PendingIntent;
-import android.content.Context;
-import android.content.Intent;
-import android.os.Bundle;
-import android.util.Log;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import com.huawei.hms.common.ResolvableApiException;
 import com.huawei.hms.flutter.push.constants.Param;
@@ -35,8 +32,12 @@ import com.huawei.hms.push.HmsMessageService;
 import com.huawei.hms.push.RemoteMessage;
 import com.huawei.hms.push.SendException;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+import android.app.PendingIntent;
+import android.content.Intent;
+import android.os.Bundle;
+import android.util.Log;
+import android.util.Log;
+import android.content.Context;
 
 /**
  * class FlutterHmsMessageService
@@ -45,6 +46,18 @@ import org.json.JSONObject;
  */
 public class FlutterHmsMessageService extends HmsMessageService {
     private static final String TAG = FlutterHmsMessageService.class.getSimpleName();
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        Log.i(TAG, "FlutterHmsMessageService onCreate called");
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.i(TAG, "FlutterHmsMessageService onStartCommand called");
+        return super.onStartCommand(intent, flags, startId);
+    }
 
     @Override
     public void onNewToken(String token) {
@@ -57,11 +70,13 @@ public class FlutterHmsMessageService extends HmsMessageService {
     }
 
     /**
-     * Called when the token is obtained from the Push Kit server through the getToken(String subjectId) method of
+     * Called when the token is obtained from the Push Kit server through the
+     * getToken(String subjectId) method of
      * HmsInstanceId in the multi-sender scenario.
-     * Bundle contains some extra return data, which can be obtained through key values such as HmsMessageService.SUBJECT_ID.
+     * Bundle contains some extra return data, which can be obtained through key
+     * values such as HmsMessageService.SUBJECT_ID.
      *
-     * @param token Token returned by the HMS Core Push SDK.
+     * @param token  Token returned by the HMS Core Push SDK.
      * @param bundle Other data returned by the Push SDK except tokens.
      */
     @Override
@@ -75,10 +90,10 @@ public class FlutterHmsMessageService extends HmsMessageService {
                 result.put("multiSenderToken", token);
                 result.put("bundle", MapUtils.bundleToMap(bundle));
                 Utils.sendIntent(PluginContext.getContext(), PushIntent.MULTI_SENDER_TOKEN_INTENT_ACTION,
-                    PushIntent.MULTI_SENDER_TOKEN, result.toString());
+                        PushIntent.MULTI_SENDER_TOKEN, result.toString());
             } catch (JSONException e) {
                 Utils.sendIntent(PluginContext.getContext(), PushIntent.MULTI_SENDER_TOKEN_INTENT_ACTION,
-                    PushIntent.MULTI_SENDER_TOKEN_ERROR, e.getMessage());
+                        PushIntent.MULTI_SENDER_TOKEN_ERROR, e.getMessage());
             }
         }
     }
@@ -89,15 +104,17 @@ public class FlutterHmsMessageService extends HmsMessageService {
         if (PluginContext.getContext() != null) {
             HMSLogger.getInstance(PluginContext.getContext()).sendPeriodicEvent("onTokenError");
             Utils.sendIntent(PluginContext.getContext(), PushIntent.TOKEN_INTENT_ACTION, PushIntent.TOKEN_ERROR,
-                "Token Error: " + e.getMessage());
+                    "Token Error: " + e.getMessage());
         }
     }
 
     /**
-     * Called when applying for a token fails from the Push Kit server through the getToken(String subjectId) method of
+     * Called when applying for a token fails from the Push Kit server through the
+     * getToken(String subjectId) method of
      * HmsInstanceId in the multi-sender scenario.
      *
-     * @param e Exception of the BaseException type, which is returned when the app fails to call the getToken method to apply for a token.
+     * @param e      Exception of the BaseException type, which is returned when the
+     *               app fails to call the getToken method to apply for a token.
      * @param bundle Other data returned by the Push SDK except tokens.
      */
     @Override
@@ -106,7 +123,7 @@ public class FlutterHmsMessageService extends HmsMessageService {
         if (PluginContext.getContext() != null) {
             if (e instanceof ResolvableApiException) {
                 HMSLogger.getInstance(PluginContext.getContext())
-                    .sendSingleEvent("onTokenError", String.valueOf(((ResolvableApiException) e).getStatusCode()));
+                        .sendSingleEvent("onTokenError", String.valueOf(((ResolvableApiException) e).getStatusCode()));
                 PendingIntent resolution = ((ResolvableApiException) e).getResolution();
                 if (resolution != null) {
                     try {
@@ -114,7 +131,7 @@ public class FlutterHmsMessageService extends HmsMessageService {
                         resolution.send();
                     } catch (PendingIntent.CanceledException ex1) {
                         HMSLogger.getInstance(PluginContext.getContext())
-                            .sendSingleEvent("onTokenError", ex1.getMessage());
+                                .sendSingleEvent("onTokenError", ex1.getMessage());
                     }
                 }
                 Intent resolutionIntent = ((ResolvableApiException) e).getResolutionIntent();
@@ -126,8 +143,8 @@ public class FlutterHmsMessageService extends HmsMessageService {
             }
             HMSLogger.getInstance(PluginContext.getContext()).sendPeriodicEvent("onMultiSenderTokenError");
             Utils.sendIntent(PluginContext.getContext(), PushIntent.MULTI_SENDER_TOKEN_INTENT_ACTION,
-                PushIntent.MULTI_SENDER_TOKEN_ERROR,
-                "Token Error: " + e.getMessage() + "Bundle: " + MapUtils.bundleToMap(bundle).toString());
+                    PushIntent.MULTI_SENDER_TOKEN_ERROR,
+                    "Token Error: " + e.getMessage() + "Bundle: " + MapUtils.bundleToMap(bundle).toString());
         }
     }
 
@@ -139,24 +156,37 @@ public class FlutterHmsMessageService extends HmsMessageService {
      **/
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
+        Log.i(TAG, "FlutterHmsMessageService onMessageReceived called with message: " + remoteMessage.getMessageId());
+        Log.i(TAG, "Message data: " + remoteMessage.getData());
+        Log.i(TAG, "Message notification: " + remoteMessage.getNotification());
+
         super.onMessageReceived(remoteMessage);
 
         Context applicationContext = getApplicationContext();
         boolean isApplicationInForeground = ApplicationUtils.isApplicationInForeground(applicationContext);
+
+        Log.i(TAG, "Application in foreground: " + isApplicationInForeground);
+
         if (isApplicationInForeground) {
             HMSLogger.getInstance(PluginContext.getContext()).sendPeriodicEvent("onMessageReceived");
             if (remoteMessage != null) {
                 JSONObject jsonObject = new JSONObject(RemoteMessageUtils.toMap(remoteMessage));
                 Utils.sendIntent(PluginContext.getContext(), PushIntent.REMOTE_DATA_MESSAGE_INTENT_ACTION,
-                    PushIntent.DATA_MESSAGE, jsonObject.toString());
+                        PushIntent.DATA_MESSAGE, jsonObject.toString());
+                Log.i(TAG, "Sent foreground intent for message: " + remoteMessage.getMessageId());
             }
         } else {
+            Log.i(TAG, "Application in background/terminated - sending background broadcast");
             PluginContext.initialize(applicationContext);
             HMSLogger.getInstance(applicationContext).sendPeriodicEvent("onMessageReceived");
+
+            // Отправляем broadcast для background обработки
             Intent intent = new Intent(applicationContext, BackgroundMessageBroadcastReceiver.class);
             intent.setAction(BackgroundMessageBroadcastReceiver.BACKGROUND_REMOTE_MESSAGE);
             intent.putExtra(Param.MESSAGE.code(), remoteMessage);
             applicationContext.sendBroadcast(intent);
+
+            Log.i(TAG, "Sent background broadcast for message: " + remoteMessage.getMessageId());
         }
     }
 

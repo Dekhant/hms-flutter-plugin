@@ -1,4 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.huawei.hms.flutter.push">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -7,16 +8,29 @@
     <application>
         <service
             android:name="com.huawei.hms.flutter.push.hms.FlutterHmsMessageService"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.huawei.push.action.MESSAGING_EVENT" />
+                <action android:name="com.huawei.android.push.intent.MSG_RECEIVED" />
             </intent-filter>
         </service>
-        <!-- This receiver is for local notification click actions -->
-        <receiver android:name="com.huawei.hms.flutter.push.receiver.local.HmsLocalNotificationActionsReceiver" />
+
         <service
             android:name="com.huawei.hms.flutter.push.backgroundmessaging.BackgroundMessagingService"
             android:exported="true"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <receiver
+            android:name="com.huawei.hms.flutter.push.receiver.BackgroundMessageBroadcastReceiver"
+            android:exported="true"
+            android:process=":pushservice">
+            <intent-filter>
+                <action
+                    android:name="com.huawei.hms.flutter.push.receiver.BACKGROUND_REMOTE_MESSAGE" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.huawei.hms.flutter.push.receiver.local.HmsLocalNotificationActionsReceiver" />
     </application>
 </manifest>
