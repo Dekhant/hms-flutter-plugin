@@ -19,12 +19,11 @@ package com.huawei.hms.flutter.push.backgroundmessaging;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.JobIntentService;
-
-import io.flutter.plugin.common.PluginRegistry.PluginRegistrantCallback;
 
 import java.util.Collections;
 import java.util.LinkedList;
@@ -44,20 +43,18 @@ public class BackgroundMessagingService extends JobIntentService {
         BackgroundMessagingService.backgroundRunner = bgRunner;
     }
 
-    // For Backwards Compatibility with V1 Plugin registration.
-    public static void setPluginRegistrantCallback(final PluginRegistrantCallback callback) {
-        FlutterBackgroundRunner.setPluginRegistrantCallback(callback);
-    }
-
     public static void setUserCallback(final Context context, final long userCallback) {
+        Log.i(TAG, "BackgroundMessagingService setUserCallback called");
         FlutterBackgroundRunner.setUserCallback(context, userCallback);
     }
 
     public static void setCallbackDispatcher(final Context context, final long callbackHandle) {
+        Log.i(TAG, "BackgroundMessagingService setCallbackDispatcher called");
         FlutterBackgroundRunner.setCallBackDispatcher(context, callbackHandle);
     }
 
     public static void enqueueWork(final Context context, final Intent intent) {
+        Log.i(TAG, "BackgroundMessagingService enqueueWork called");
         JobIntentService.enqueueWork(context, BackgroundMessagingService.class, JOB_ID, intent);
     }
 
@@ -66,14 +63,17 @@ public class BackgroundMessagingService extends JobIntentService {
             Log.i(TAG, "Background messaging runner is already initialized...Returning");
             return;
         }
+        Log.i(TAG, "BackgroundMessagingService startBgIsolate called");
         backgroundRunner = new FlutterBackgroundRunner();
         backgroundRunner.startBgIsolate(context, callbackHandle);
     }
 
     static void onInitialized() {
+        Log.i(TAG, "BackgroundMessagingService onInitialized called");
         if (!QUEUE.isEmpty()) {
             synchronized (QUEUE) {
                 for (final Intent intent : QUEUE) {
+                    Log.i(TAG, "BackgroundMessagingService: executing Dart callback for queued intent");
                     backgroundRunner.executeDartCallbackInBgIsolate(intent, null);
                 }
                 QUEUE.clear();
@@ -84,6 +84,7 @@ public class BackgroundMessagingService extends JobIntentService {
     @Override
     public void onCreate() {
         super.onCreate();
+        Log.i(TAG, "BackgroundMessagingService onCreate called");
         if (backgroundRunner == null) {
             setBackgroundRunner(new FlutterBackgroundRunner());
         }
@@ -92,20 +93,23 @@ public class BackgroundMessagingService extends JobIntentService {
 
     @Override
     protected void onHandleWork(@NonNull final Intent intent) {
+        Log.i(TAG, "BackgroundMessagingService onHandleWork called");
         synchronized (QUEUE) {
             if (backgroundRunner.isNotReady()) {
                 Log.i(TAG, "Background Service has not started yet, datas will be queued.");
                 QUEUE.add(intent);
                 return;
             }
+            Log.i(TAG, "Background Service is ready, processing message");
             final CountDownLatch latch = new CountDownLatch(1);
             new Handler(getMainLooper()).post(() -> backgroundRunner.executeDartCallbackInBgIsolate(intent, latch));
             try {
                 latch.await();
+                Log.i(TAG, "Background message processing completed");
             } catch (final InterruptedException ex) {
                 Log.i(TAG, "Exception waiting to execute Dart callback", ex);
                 Thread.currentThread().interrupt();
             }
         }
     }
-}
+} 

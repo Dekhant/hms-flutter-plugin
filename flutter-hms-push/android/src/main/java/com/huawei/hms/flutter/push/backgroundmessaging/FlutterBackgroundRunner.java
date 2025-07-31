@@ -38,13 +38,11 @@ import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.embedding.engine.dart.DartExecutor;
 import io.flutter.embedding.engine.dart.DartExecutor.DartCallback;
 import io.flutter.embedding.engine.loader.FlutterLoader;
-import io.flutter.embedding.engine.plugins.shim.ShimPluginRegistry;
 import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
-import io.flutter.plugin.common.PluginRegistry.PluginRegistrantCallback;
 import io.flutter.view.FlutterCallbackInformation;
 
 import java.util.Arrays;
@@ -60,9 +58,6 @@ public class FlutterBackgroundRunner implements MethodCallHandler {
 
     public static final String USER_CALLBACK_KEY = "push_background_message_callback";
 
-    // Deprecated, Support for backwards compatibility with V1 embedding.
-    private static PluginRegistrantCallback pluginRegistrantCallback;
-
     private final AtomicBoolean isCallbackDispatcherReady = new AtomicBoolean(false);
 
     private MethodChannel bgMethodChannel;
@@ -71,19 +66,18 @@ public class FlutterBackgroundRunner implements MethodCallHandler {
 
     private long bgMessagingCallback;
 
-    // For Backwards Compatibility with V1 Plugin registration.
-    public static void setPluginRegistrantCallback(final PluginRegistrantCallback callback) {
-        pluginRegistrantCallback = callback;
-    }
-
     public static void setCallBackDispatcher(final Context context, final long callbackHandle) {
+        Log.i(TAG, "FlutterBackgroundRunner setCallBackDispatcher called with handle: " + callbackHandle);
         final SharedPreferences prefs = context.getSharedPreferences(Core.PREFERENCE_NAME, Context.MODE_PRIVATE);
         prefs.edit().putLong(CALLBACK_DISPATCHER_KEY, callbackHandle).apply();
+        Log.i(TAG, "FlutterBackgroundRunner setCallBackDispatcher saved to SharedPreferences");
     }
 
     public static void setUserCallback(final Context context, final long userCallback) {
+        Log.i(TAG, "FlutterBackgroundRunner setUserCallback called with callback: " + userCallback);
         final SharedPreferences prefs = context.getSharedPreferences(Core.PREFERENCE_NAME, Context.MODE_PRIVATE);
         prefs.edit().putLong(USER_CALLBACK_KEY, userCallback).apply();
+        Log.i(TAG, "FlutterBackgroundRunner setUserCallback saved to SharedPreferences");
     }
 
     public boolean isNotReady() {
@@ -91,12 +85,14 @@ public class FlutterBackgroundRunner implements MethodCallHandler {
     }
 
     private void loadCallbacks(final Context context) {
+        Log.i(TAG, "FlutterBackgroundRunner loadCallbacks called");
         final SharedPreferences prefs = context.getSharedPreferences(Core.PREFERENCE_NAME, Context.MODE_PRIVATE);
         bgMessagingCallback = prefs.getLong(USER_CALLBACK_KEY, -1);
+        Log.i(TAG, "FlutterBackgroundRunner loadCallbacks loaded callback: " + bgMessagingCallback);
     }
 
     public void startBgIsolate(final Context context) {
-        Log.i(TAG, "#startBgIsolate");
+        Log.i(TAG, "FlutterBackgroundRunner startBgIsolate called");
         if (isNotReady()) {
             final SharedPreferences prefs = context.getSharedPreferences(Core.PREFERENCE_NAME, Context.MODE_PRIVATE);
             final long callbackHandle = prefs.getLong(CALLBACK_DISPATCHER_KEY, -1);
@@ -119,22 +115,19 @@ public class FlutterBackgroundRunner implements MethodCallHandler {
                 Log.i(TAG, "Starting Background Runner");
                 final String appBundlePath = flutterLoader.findAppBundlePath();
                 final AssetManager assets = context.getAssets();
-                if (isNotReady()) {
-                    flutterEngine = new FlutterEngine(context);
+                flutterEngine = new FlutterEngine(context);
 
-                    final FlutterCallbackInformation flutterCallbackInfo
-                        = FlutterCallbackInformation.lookupCallbackInformation(callbackHandle);
-                    final DartExecutor executor = flutterEngine.getDartExecutor();
-                    initializeMethodChannel(executor);
-                    final DartCallback dartCallback = new DartCallback(assets, appBundlePath, flutterCallbackInfo);
-                    executor.executeDartCallback(dartCallback);
-
-                    // For V1 Embedding
-                    if (pluginRegistrantCallback != null) {
-                        pluginRegistrantCallback.registerWith(new ShimPluginRegistry(flutterEngine));
-                    }
-
-                }
+                final FlutterCallbackInformation flutterCallbackInfo
+                    = FlutterCallbackInformation.lookupCallbackInformation(callbackHandle);
+                final DartExecutor executor = flutterEngine.getDartExecutor();
+                initializeMethodChannel(executor);
+                final DartCallback dartCallback = new DartCallback(assets, appBundlePath, flutterCallbackInfo);
+                executor.executeDartCallback(dartCallback);
+                
+                // Вызываем onInitialized() сразу после создания FlutterEngine
+                // Не ждем Dart код в terminated состоянии
+                Log.i(TAG, "FlutterEngine created, calling onInitialized immediately");
+                onInitialized();
             });
         };
         mainHandler.post(runnable);
@@ -146,6 +139,7 @@ public class FlutterBackgroundRunner implements MethodCallHandler {
     }
 
     private void onInitialized() {
+        Log.i(TAG, "FlutterBackgroundRunner onInitialized called");
         isCallbackDispatcherReady.set(true);
         BackgroundMessagingService.onInitialized();
     }
@@ -153,19 +147,23 @@ public class FlutterBackgroundRunner implements MethodCallHandler {
     @Override
     public void onMethodCall(@NonNull final MethodCall call, @NonNull final Result result) {
         try {
+            Log.i(TAG, "FlutterBackgroundRunner onMethodCall called with method: " + call.method);
             if (call.method.equals("BackgroundRunner.initialize")) {
+                Log.i(TAG, "BackgroundRunner.initialize called from Dart");
                 onInitialized();
                 result.success(1);
             } else {
+                Log.w(TAG, "Unknown method called: " + call.method);
                 result.notImplemented();
             }
         } catch (final Exception e) {
-            Log.e(TAG, e.getMessage() != null ? e.getMessage() : "");
+            Log.e(TAG, "FlutterBackgroundRunner.onMethodCall error: " + e.getMessage());
             result.error("-1", "FlutterBackgroundRunner.onMethodCall error: " + e.getMessage(), null);
         }
     }
 
     public void executeDartCallbackInBgIsolate(final Intent intent, final CountDownLatch latch) {
+        Log.i(TAG, "FlutterBackgroundRunner executeDartCallbackInBgIsolate called");
         if (flutterEngine == null) {
             Log.i(TAG,
                 "A background message could not be handled in Dart as no onBackgroundLocation handler has been registered");
@@ -180,6 +178,7 @@ public class FlutterBackgroundRunner implements MethodCallHandler {
 
             if (bgMethodChannel != null) {
                 List<Object> resp = Arrays.asList(bgMessagingCallback, RemoteMessageUtils.toMap(remoteMessage));
+                Log.i(TAG, "FlutterBackgroundRunner: invoking Dart handler via bgMethodChannel");
                 bgMethodChannel.invokeMethod("", resp, result);
             } else {
                 Log.e(TAG, "Can not find the background method channel.");
